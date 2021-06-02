@@ -329,6 +329,10 @@ void Mower::setup() {
 
   // LED, buzzer, battery
   pinMode(pinLED, OUTPUT);
+  //LJ
+  pinMode(pinGreenLED, OUTPUT);
+  pinMode(pinRedLED, OUTPUT); 
+  
   pinMode(pinBuzzer, OUTPUT);
   digitalWrite(pinBuzzer, 0);
   pinMode(pinBatteryVoltage, INPUT);
