@@ -4005,7 +4005,8 @@ void Robot::setNextState(byte stateNew, byte dir) {
       OdoRampCompute();
 
 
-      motorMowEnable = false;
+      //LJ  
+	  motorMowEnable = true;
       break;
 
 

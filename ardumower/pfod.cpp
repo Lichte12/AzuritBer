@@ -1334,7 +1334,7 @@ void RemoteControl::processCommandMenu(String pfodCmd) {
       robot->ActualRunningTimer = 99;
       robot->findedYaw = 999;
       robot->imuDirPID.reset();
-      //robot->mowPatternCurr = 1;
+      robot->mowPatternCurr = MOW_RANDOM;
       robot->laneUseNr = 1;
       robot->rollDir = 1;
       robot->whereToStart = 1;
