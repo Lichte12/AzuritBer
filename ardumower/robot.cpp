@@ -39,6 +39,9 @@
 #include "DHT.h"
 #include "RpiRemote.h"
 
+//LJ
+#include "display.h"
+
 
 
 
@@ -2033,7 +2036,9 @@ void Robot::setup()  {
   Console.print(millis());
   Console.println(" --> +++++++++++++++++++++++++++");
 
-
+  //LJ
+  //DisplaySetup();
+  
   ADCMan.begin();
   PinMan.begin();
   if (RaspberryPIUse) MyRpi.init();
@@ -3975,6 +3980,8 @@ void Robot::setNextState(byte stateNew, byte dir) {
   stateLast = stateCurr;
   stateCurr = stateNext;
   perimeterTriggerTime = 0;
+    //LJ
+  //UpdateDisplayState();
   Console.print (F(statusNames[statusCurr]));
   Console.print (" / ");
   Console.println (F(stateNames[stateCurr]));
@@ -4823,7 +4830,9 @@ void Robot::checkTimeout() {
 void Robot::loop()  {
   stateTime = millis() - stateStartTime;
   int steer;
-
+  
+  //LJ
+  //UpdateDisplayBat(); 
   ADCMan.run();
   if (perimeterUse) perimeter.run();
   if (RaspberryPIUse) {
