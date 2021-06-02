@@ -41,7 +41,7 @@
 
 //LJ
 #include "display.h"
-
+#include "LED.h"
 
 
 
@@ -4833,6 +4833,8 @@ void Robot::loop()  {
   
   //LJ
   //UpdateDisplayBat(); 
+  updateLED();
+  
   ADCMan.run();
   if (perimeterUse) perimeter.run();
   if (RaspberryPIUse) {
