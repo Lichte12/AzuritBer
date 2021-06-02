@@ -61,7 +61,7 @@ Mower::Mower() {
   motorOdoAccel = 1500; //Time for accel from 0 to 100% in ms
   motorSpeedMaxRpm       = 24;   // motor wheel max RPM (WARNING: do not set too high, so there's still speed control when battery is low!)
   motorSpeedMaxPwm    = 190;  // motor wheel max Pwm  (8-bit PWM=255, 10-bit PWM=1023)
-  motorPowerMax     = 23;    // motor wheel max power (Watt)
+  motorPowerMax     = 19;    // motor wheel max power (Watt)
   motorSenseRightScale = 1.870; // normal is 1.536 motor right sense scale (mA=(ADC-zero)/scale)
   motorSenseLeftScale = 1.650; // normal is 1.536 motor left sense scale  (mA=(ADC-zero)/scale)
   motorPowerIgnoreTime = 2000; // time to ignore motor power when start to avoid read the peack on motor start (ms)
@@ -95,16 +95,16 @@ Mower::Mower() {
   
   // ------ mower motor -------------------------------
   motorMowAccel       = 1000;  // motor mower acceleration (warning: do not set too low) 2000 seems to fit best considerating start time and power consumption
-  motorMowSpeedMaxPwm   = 200;    // motor mower max PWM
-  motorMowSpeedMinPwm = 100;   // motor mower minimum PWM (only for cutter modulation)
-  motorMowPowerMax = 18.0;     // motor mower max power (Watt)
+  motorMowSpeedMaxPwm   = 220;    // motor mower max PWM
+  motorMowSpeedMinPwm = 160;   // motor mower minimum PWM (only for cutter modulation)
+  motorMowPowerMax = 50.0;     // motor mower max power (Watt)
 
   motorMowSenseScale = 1.536; // motor mower sense scale (mA=(ADC-zero)/scale)
   motorMowPID.Kp = 0.005;    // motor mower RPM PID controller
   motorMowPID.Ki = 0.01;
   motorMowPID.Kd = 0.01;
   //  ------ bumper -----------------------------------
-  bumperUse         = 0;      // has bumpers?
+  bumperUse         = 1;      // has bumpers?
   //  ------ drop -----------------------------------
   dropUse          = 0;     // has drops?                                                                                              Dropsensor - Absturzsensor vorhanden ?
   dropcontact      = 0;     //contact 0-openers 1-closers                                                                              Dropsensor - Kontakt 0-Ã–ffner - 1-SchlieÃŸer betÃ¤tigt gegen GND
@@ -112,7 +112,7 @@ Mower::Mower() {
   rainUse          = 0;      // use rain sensor?
 
   // ------ DHT22Use ------------------------------------
-  DHT22Use          = 0;      // use DHT22 sensor?
+  DHT22Use          = 1;      // use DHT22 sensor?
   maxTemperature    = 55;     // max temp before switch off
   //bber35
   // ------ RFID ------------------------------------
@@ -134,7 +134,7 @@ Mower::Mower() {
 
 
   // ------ perimeter ---------------------------------
-  perimeterUse       = 0;      // use perimeter?
+  perimeterUse       = 1;      // use perimeter?
   perimeterTriggerMinSmag = 200;      // perimeter minimum smag to use on big area
   //perimeterOutRollTimeMax  = 2000;   // free
   //perimeterOutRollTimeMin = 750;    // free
@@ -144,7 +144,7 @@ Mower::Mower() {
   DistPeriOutRev = 40; // reverse distance when reach the perimeter in cm
   DistPeriObstacleRev = 30; // reverse distance when hit obstacle while tracking in cm
   DistPeriOutForw = 60; // distance to accell
-  DistPeriOutStop = 15; //slowing distance after crossover the wire
+  DistPeriOutStop = 5; //slowing distance after crossover the wire
   DistPeriObstacleForw = 25; //distance while arc circle in peri obstacle avoid
   perimeterPID.Kp    = 16.5;  // perimeter PID controller
   perimeterPID.Ki    = 8;
@@ -160,13 +160,13 @@ Mower::Mower() {
   circleTimeForObstacle = 4000; //time while arc circle in peri obstacle avoid if no Odometry
   DistPeriObstacleAvoid = 100; //distance while arc circle in peri obstacle avoid
   perimeterMagMaxValue = 2000; // Maximum value return when near the perimeter wire (use for tracking and slowing when near wire
-  perimeter.read2Coil = false;
+  perimeter.read2Coil = true;
   areaToGo = 1;//initialise the areatogo to the station area
 
   // ------ lawn sensor --------------------------------
   lawnSensorUse     = 0;       // use capacitive Sensor
   // ------  IMU (compass/accel/gyro) ----------------------
-  imuUse            = 0;       // use IMU?
+  imuUse            = 1;       // use IMU?
   CompassUse = 0;       // activate compass?
   stopMotorDuringCalib     = 0;       // correct direction by compass?
   imuDirPID.Kp      = 4.4;     // direction PID controller
@@ -201,16 +201,16 @@ Mower::Mower() {
   // ------ model R/C ------------------------------------
   remoteUse         = 0;       // use model remote control (R/C)?
   // ------ battery -------------------------------------
-  batMonitor = false;              // monitor battery and charge voltage?
-  batGoHomeIfBelow = 24.3;     // drive home voltage (Volt)
-  batSwitchOffIfBelow = 23;  // switch off battery if below voltage (Volt)
-  batSwitchOffIfIdle = 300;      // switch off battery if idle (minutes)
+  batMonitor = true;              // monitor battery and charge voltage?
+  batGoHomeIfBelow = 24.0;     // drive home voltage (Volt)
+  batSwitchOffIfBelow = 23.0;  // switch off battery if below voltage (Volt)
+  batSwitchOffIfIdle = 10;      // switch off battery if idle (minutes)
   batFactor       = 10.88;     //depend of the resistor divisor on board R12 and R13
   batChgFactor    = 10.89;     //depend of the resistor divisor on board R9 and R10
   batFull          = 29.4;     // battery reference Voltage (fully charged) PLEASE ADJUST IF USING A DIFFERENT BATTERY VOLTAGE! FOR a 12V SYSTEM TO 14.4V
-  batChargingCurrentMax = 2; // maximum current your charger can devliver
+  batChargingCurrentMax = 3; // maximum current your charger can devliver
   batFullCurrent  = 0.1;      // current flowing when battery is fully charged
-  startChargingIfBelow = 25.0; // start charging if battery Voltage is below
+  startChargingIfBelow = 28.0; // start charging if battery Voltage is below
   chargingTimeout = 25200000; // safety timer for charging (ms)  7 hrs
   chgSenseZero    = 511;        // charge current sense zero point
   batSenseFactor  = 1.11;         // charge current conversion factor   - Empfindlichkeit nimmt mit ca. 39/V Vcc ab
@@ -218,20 +218,20 @@ Mower::Mower() {
   chgChange       = 0;          // Messwertumkehr von - nach +         1 oder 0
   chgNull         = 2;          // Nullduchgang abziehen (1 oder 2)
   // ------  charging station ---------------------------
-  stationRevDist     = 50;    // charge station reverse 50 cm
-  stationRollAngle    = 45;    // charge station roll after reverse
+  stationRevDist     = 150;    // charge station reverse 50 cm
+  stationRollAngle    = 65;    // charge station roll after reverse
   stationForwDist    = 30;    // charge station accel distance cm
   stationCheckDist   = 2;    // charge station  check distance to be sure voltage is OK cm
-  UseBumperDock = true; //bumper is pressed when docking or not
+  UseBumperDock = false; //bumper is pressed when docking or not
   dockingSpeed   =  60;   //speed docking is (percent of maxspeed)
   autoResetActive  = 0;       // after charging reboot or not
 
 
   // ------ odometry ------------------------------------
   odometryUse       = 1;       // use odometry?
-  odometryTicksPerRevolution = 1010;   // encoder ticks per one full resolution
-  odometryTicksPerCm = 12.9;  // encoder ticks per cm
-  odometryWheelBaseCm = 43;    // wheel-to-wheel distance (cm)
+  odometryTicksPerRevolution = 700;   // encoder ticks per one full resolution
+  odometryTicksPerCm = 10.1;  // encoder ticks per cm
+  odometryWheelBaseCm = 45;    // wheel-to-wheel distance (cm)
 
 
 
@@ -252,9 +252,9 @@ Mower::Mower() {
   // ----- timer -----------------------------------------
   timerUse          = 0;       // use RTC and timer?
   // ----- bluetooth -------------------------------------
-  bluetoothUse      = 1;      // use Bluetooth module? It's Impossible to use Bluetooth and esp8266 at same time
+  bluetoothUse      = 0;      // use Bluetooth module? It's Impossible to use Bluetooth and esp8266 at same time
   // ----- esp8266 ---------------------------------------
-  esp8266Use        = 0;       // use ESP8266 Wifi module?
+  esp8266Use        = 1;       // use ESP8266 Wifi module?
   esp8266ConfigString = "1234567321"; // always use 10 char to avoid eeprom corruption
 
   // ------ mower stats-------------------------------------------
