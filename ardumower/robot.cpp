@@ -2485,7 +2485,77 @@ void Robot::checkButton() {
     else
     {
       // ON/OFF button released
-      //Console.print(F("Button Release counter : "));
+	  //LJ
+		switch(stateCurr) {
+			case STATE_OFF:
+				if (buttonCounter > 1) { //lang
+					//go to station
+					periFindDriveHeading = scalePI(imu.ypr.yaw);
+					areaToGo = 1;
+					whereToStart = 99999;
+					nextTimeTimer = millis() + 3600000; //avoid the mower start again if timer activate.
+					statusCurr = BACK_TO_STATION;
+					buttonCounter = 0;
+					if (RaspberryPIUse) MyRpi.SendStatusToPi();
+					setNextState(STATE_PERI_FIND, 0);
+				}
+				else { //kurz
+					// start normal with random mowing
+					motorMowEnable = true;
+					statusCurr = NORMAL_MOWING;
+					mowPatternCurr = MOW_RANDOM;
+					buttonCounter = 0;
+					if (RaspberryPIUse) MyRpi.SendStatusToPi();
+					setNextState(STATE_ACCEL_FRWRD, 0);
+				}
+				break;
+			  
+			case STATE_STATION:
+				Console.println("MANUAL START FROM STATION");
+				ActualRunningTimer = 99;
+				findedYaw = 999;
+				imuDirPID.reset();
+				laneUseNr = 1;
+				rollDir = 1;
+				whereToStart = 1;
+				areaToGo = 1;
+				actualLenghtByLane = 40;
+				beaconToStart = 0;
+				startByTimer = true;
+				mowPatternDuration = 0;
+				mowPatternCurr = MOW_RANDOM;
+				totalDistDrive = 0;
+				setActuator(ACT_CHGRELAY, 0);
+				setNextState(STATE_STATION_REV, 0);
+				break;
+				
+			case STATE_STATION_CHARGING:
+				Console.println("MANUAL START FROM STATION");
+				ActualRunningTimer = 99;
+				findedYaw = 999;
+				imuDirPID.reset();
+				laneUseNr = 1;
+				rollDir = 1;
+				whereToStart = 1;
+				areaToGo = 1;
+				actualLenghtByLane = 40;
+				beaconToStart = 0;
+				startByTimer = true;
+				mowPatternDuration = 0;
+				mowPatternCurr = MOW_RANDOM;
+				totalDistDrive = 0;
+				setActuator(ACT_CHGRELAY, 0);
+				setNextState(STATE_STATION_REV, 0);
+				break;			
+
+			default:
+				Console.println(F("ButtonPressed Stop Mowing and Reset Error"));
+				motorMowEnable = false;
+				buttonCounter = 0;
+				setNextState(STATE_OFF, 0);
+				break;
+		}
+/*    //Console.print(F("Button Release counter : "));
       //Console.println(buttonCounter);
       if ((statusCurr == NORMAL_MOWING) || (statusCurr == SPIRALE_MOWING) || (stateCurr == STATE_ERROR) || (statusCurr == WIRE_MOWING) || (statusCurr == BACK_TO_STATION) || (statusCurr == TRACK_TO_START)) {
         Console.println(F("ButtonPressed Stop Mowing and Reset Error"));
@@ -2529,7 +2599,7 @@ void Robot::checkButton() {
           return;
         }
       }
-      buttonCounter = 0;
+*/    buttonCounter = 0;
     }
 
   }
