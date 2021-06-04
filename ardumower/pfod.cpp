@@ -514,12 +514,17 @@ void RemoteControl::sendBumperMenu(boolean update) {
   serialPort->print(robot->bumperRight);
   serialPort->println(F("|b03~Button Use "));
   sendYesNo(robot->buttonUse);
+  serialPort->print(F("|b04~Use tilt "));
+  sendYesNo(robot->tiltUse);    
+  serialPort->println(F("|b05~Tilt value "));
+  serialPort->print(robot->tilt);
   serialPort->println("}");
 }
 
 void RemoteControl::processBumperMenu(String pfodCmd) {
   if (pfodCmd == "b00") robot->bumperUse = !robot->bumperUse;
   if (pfodCmd == "b03") robot->buttonUse = !robot->buttonUse;
+  if (pfodCmd == "b04") robot->tiltUse = !robot->tiltUse;
   sendBumperMenu(true);
 }
 

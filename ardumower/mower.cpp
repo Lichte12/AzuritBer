@@ -105,6 +105,8 @@ Mower::Mower() {
   motorMowPID.Kd = 0.01;
   //  ------ bumper -----------------------------------
   bumperUse         = 1;      // has bumpers?
+  //  ------ Tilt -----------------------------------
+  tiltUse         = 1;      // has Tilt Sensor?
   //  ------ drop -----------------------------------
   dropUse          = 0;     // has drops?                                                                                              Dropsensor - Absturzsensor vorhanden ?
   dropcontact      = 0;     //contact 0-openers 1-closers                                                                              Dropsensor - Kontakt 0-Ã–ffner - 1-SchlieÃŸer betÃ¤tigt gegen GND
@@ -537,6 +539,9 @@ int Mower::readSensor(char type) {
     //bumper----------------------------------------------------------------------------------------------------
     case SEN_BUMPER_RIGHT: return (digitalRead(pinBumperRight)); break;
     case SEN_BUMPER_LEFT: return (digitalRead(pinBumperLeft)); break;
+	
+	//tilt----------------------------------------------------------------------------------------------------
+    case SEN_TILT: return(digitalRead(pinTilt)); break;  
 
     //drop----------------------------------------------------------------------------------------------------
     case SEN_DROP_RIGHT: return (digitalRead(pinDropRight)); break;                                                                                     // Dropsensor - Absturzsensor

@@ -2762,6 +2762,7 @@ void Robot::readSensors() {
 
   if ((bumperUse) && (millis() >= nextTimeBumper)) {
     nextTimeBumper = millis() + 100;
+	tilt = (readSensor(SEN_TILT) == 0);
     if (readSensor(SEN_BUMPER_LEFT) == 0) {
       //Console.println("Bumper left trigger");
       bumperLeftCounter++;
@@ -4747,9 +4748,19 @@ void Robot::checkSonar() {
 
 // check IMU (tilt)
 void Robot::checkTilt() {
-  if (!imuUse) return;
   if (millis() < nextTimeCheckTilt) return;
   nextTimeCheckTilt = millis() + 50; // 5Hz same as nextTimeImu
+  
+	if (tiltUse){
+		if ( (tilt) && (stateCurr != STATE_OFF) && (stateCurr != STATE_ERROR) && (stateCurr != STATE_STATION) && (stateCurr != STATE_STATION_CHARGING)) {
+			Console.print(F("Warning : Tiltpin "));
+			motorMowEnable = false;   
+			setNextState(STATE_ERROR, 0);
+		}
+	}
+	
+  if (!imuUse) return;
+
   int pitchAngle = (imu.ypr.pitch / PI * 180.0);
   int rollAngle  = (imu.ypr.roll / PI * 180.0);
   //bber4

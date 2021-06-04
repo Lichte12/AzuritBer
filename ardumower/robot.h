@@ -77,6 +77,7 @@ enum {
   SEN_SONAR_LEFT,        // 0..SONAR_TRIGGER_DISTANCE
   SEN_SONAR_RIGHT,       // 0..SONAR_TRIGGER_DISTANCE
   SEN_BUTTON,            // LOW = pressed
+  SEN_TILT,
   SEN_IMU,
   SEN_MOTOR_MOW_RPM,
   SEN_RTC,
