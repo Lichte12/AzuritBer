@@ -451,10 +451,14 @@ void RemoteControl::sendMowMenu(boolean update) {
   sendYesNo(robot->motorMowForceOff);
   //serialPort->print(F("|o00~Overload Counter "));
   //serialPort->print(robot->motorMowSenseCounter);
-  serialPort->print(F("|o01~Power in Watt "));
+  serialPort->print(F("|o01~Power in Watt Mow1/Mow2: "));
   serialPort->print(robot->motorMowPower);
-  serialPort->print(F("|o11~current in mA "));
+  serialPort->print(" / ");
+  serialPort->print(robot->motorMow2Power);
+  serialPort->print(F("|o11~current in mA Mow1/Mow2: "));
   serialPort->print(robot->motorMowSenseCurrent);
+  serialPort->print(" / ");
+  serialPort->print(robot->motorMow2SenseCurrent);
   sendSlider("o02", F("Power max"), robot->motorMowPowerMax, "", 0.1, 100, 1);
   sendSlider("o05", F("PWM Max Speed "), robot->motorMowSpeedMaxPwm, "", 1, 255, 50);
   sendSlider("o08", F("PWM Min Speed "), robot->motorMowSpeedMinPwm, "", 1, 255, 50);
@@ -1604,6 +1608,8 @@ void RemoteControl::run() {
     serialPort->print(",");
     serialPort->print(robot->motorMowPower);
     serialPort->print(",");
+	serialPort->print(robot->motorMow2Power);
+    serialPort->print(",");
     serialPort->print(robot->sonarDistLeft);
     serialPort->print(",");
     serialPort->print(robot->sonarDistCenter);
@@ -1736,6 +1742,8 @@ void RemoteControl::run() {
       serialPort->print(robot->motorRightPower);
       serialPort->print(",");
       serialPort->print(robot->motorMowPower);
+      serialPort->print(",");
+	  serialPort->print(robot->motorMow2Power);
       serialPort->print(",");
       serialPort->print(robot->sonarDistLeft);
       serialPort->print(",");

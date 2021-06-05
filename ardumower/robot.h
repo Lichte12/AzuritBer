@@ -68,6 +68,7 @@ enum {
   SEN_MOTOR_LEFT,        // 0..MAX_MOTOR_CURRENT
   SEN_MOTOR_RIGHT,       // 0..MAX_MOTOR_CURRENT
   SEN_MOTOR_MOW,         // 0..MAX_MOW_CURRENT
+  SEN_MOTOR_MOW2,         // 0..MAX_MOW_CURRENT
   SEN_BUMPER_LEFT,       // LOW = pressed
   SEN_BUMPER_RIGHT,      // LOW = pressed
   SEN_DROP_LEFT,       // LOW = pressed                                                                                                  // Dropsensor - Absturzsensor
@@ -458,6 +459,9 @@ class Robot
     float motorMowPower ;       // motor power (range 0..MAX_MOW_POWER)
     int motorMowSenseCounter ;
     int motorMowSenseErrorCounter ;
+    int motorMow2SenseADC ;
+    float motorMow2SenseCurrent ;
+    float motorMow2Power ;       // motor power (range 0..MAX_MOW_POWER)
     
     unsigned long lastMotorMowRpmTime;
 

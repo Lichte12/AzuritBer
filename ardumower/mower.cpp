@@ -361,6 +361,7 @@ void Mower::setup() {
   pinMode(pinMotorMowDir, OUTPUT);
   pinMode(pinMotorMowPWM, OUTPUT);
   pinMode(pinMotorMowSense, INPUT);
+  pinMode(pinMotorMow2Sense, INPUT);
   pinMode(pinMotorMowRpm, INPUT);
   pinMode(pinMotorMowEnable, OUTPUT);
   digitalWrite(pinMotorMowEnable, HIGH);
@@ -431,6 +432,7 @@ void Mower::setup() {
 
   ADCMan.setupChannel(pinChargeCurrent, 1, false);
   ADCMan.setupChannel(pinMotorMowSense, 1, false);
+  ADCMan.setupChannel(pinMotorMow2Sense, 1, false);
   ADCMan.setupChannel(pinMotorLeftSense, 1, false);
   ADCMan.setupChannel(pinMotorRightSense, 1, false);
 
@@ -517,6 +519,7 @@ int Mower::readSensor(char type) {
 
     // motors------------------------------------------------------------------------------------------------
     case SEN_MOTOR_MOW: return ADCMan.getValue(pinMotorMowSense); break;
+	case SEN_MOTOR_MOW2: return ADCMan.getValue(pinMotorMow2Sense); break;
     case SEN_MOTOR_RIGHT: checkMotorFault(); return ADCMan.getValue(pinMotorRightSense); break;
     case SEN_MOTOR_LEFT: checkMotorFault(); return ADCMan.getValue(pinMotorLeftSense); break;
 

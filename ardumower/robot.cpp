@@ -136,7 +136,10 @@ Robot::Robot() {
   motorMowPWMCurr = 0;
   motorMowSenseADC = 0;
   motorMowSenseCurrent  = 0;
+  motorMow2SenseADC = 0;
+  motorMow2SenseCurrent  = 0;
   motorMowPower = 0;
+  motorMow2Power = 0;
   motorMowSenseCounter = 0;
   motorMowSenseErrorCounter = 0;
   motorMowPwmCoeff = 100;
@@ -2629,21 +2632,25 @@ void Robot::readSensors() {
     motorRightSenseADC = readSensor(SEN_MOTOR_RIGHT) ; //return the ADC value,for MC33926 0.525V/1A so ADC=651/1Amp
     motorLeftSenseADC = readSensor(SEN_MOTOR_LEFT) ;
     motorMowSenseADC = readSensor(SEN_MOTOR_MOW) ;
+	motorMow2SenseADC = readSensor(SEN_MOTOR_MOW2) ;
     //  double batvolt = batFactor*readSensor(SEN_BAT_VOLTAGE)*3.3/4096 ;
     // motorRightSenseADC =651 for 1000ma so motorSenseRightScale=1.536
     motorRightSenseCurrent = motorRightSenseCurrent * (1.0 - accel) + ((double)motorRightSenseADC) * motorSenseRightScale * accel;
     motorLeftSenseCurrent = motorLeftSenseCurrent * (1.0 - accel) + ((double)motorLeftSenseADC) * motorSenseLeftScale * accel;
     motorMowSenseCurrent = motorMowSenseCurrent * (1.0 - accel) + ((double)motorMowSenseADC) * motorMowSenseScale * accel;
-
+	motorMow2SenseCurrent = motorMow2SenseCurrent * (1.0 - accel) + ((double)motorMow2SenseADC) * motorMowSenseScale * accel;
+	
     if (batVoltage > 8) {
       motorRightPower = motorRightSenseCurrent * batVoltage / 1000;  // conversion to power in Watt
       motorLeftPower  = motorLeftSenseCurrent  * batVoltage / 1000;
       motorMowPower   = motorMowSenseCurrent   * batVoltage / 1000;
+	  motorMow2Power   = motorMow2SenseCurrent * batVoltage / 1000;
     }
     else {
       motorRightPower = motorRightSenseCurrent * batFull / 1000;  // conversion to power in Watt in absence of battery voltage measurement
       motorLeftPower  = motorLeftSenseCurrent  * batFull / 1000;
       motorMowPower   = motorMowSenseCurrent   * batFull / 1000;
+	  motorMow2Power   = motorMow2SenseCurrent * batFull / 1000;
     }
     /*
         if ((millis() - lastMotorMowRpmTime) >= 500) {
@@ -4227,7 +4234,7 @@ void Robot::checkCurrent() {
   if (millis() < nextTimeCheckCurrent) return;
   nextTimeCheckCurrent = millis() + 100;
   if (statusCurr == NORMAL_MOWING) {  //do not start the spirale if in tracking and motor detect high grass
-    if (motorMowPower >= 0.8 * motorMowPowerMax) {
+    if ((motorMowPower >= 0.8 * motorMowPowerMax) || (motorMow2Power >= 0.8 * motorMowPowerMax)) {
       spiraleNbTurn = 0;
       halfLaneNb = 0;
       highGrassDetect = true;
@@ -4244,7 +4251,7 @@ void Robot::checkCurrent() {
   }
 
   // if (motorMowPower >= motorMowPowerMax)
-  if ((motorMowEnable) && (motorMowPower >= motorMowPowerMax))
+  if ((motorMowEnable) && ((motorMowPower >= motorMowPowerMax) || (motorMow2Power >= motorMowPowerMax)))
   {
     motorMowSenseCounter++;
     Console.print("Warning  motorMowPower >= motorMowPowerMax and Counter time is ");
@@ -4254,7 +4261,7 @@ void Robot::checkCurrent() {
   {
     errorCounterMax[ERR_MOW_SENSE] = 0;
     motorMowSenseCounter = 0;
-    if ((lastTimeMotorMowStuck != 0) && (millis() >= lastTimeMotorMowStuck + 60000)) { // wait 60 seconds before switching on again
+    if ((lastTimeMotorMowStuck != 0) && (millis() >= lastTimeMotorMowStuck + 30000)) { // wait 30 seconds before switching on again
       errorCounter[ERR_MOW_SENSE] = 0;
       if ((stateCurr == STATE_FORWARD_ODO)) { //avoid risq of restart not allowed
         motorMowEnable = true;
@@ -4264,7 +4271,7 @@ void Robot::checkCurrent() {
     }
   }
   //need to check this
-  if (motorMowSenseCounter >= 10) { //ignore motorMowPower for 1 seconds
+  if (motorMowSenseCounter >= 20) { //ignore motorMowPower for 1 seconds
     motorMowEnable = false;
     Console.println("Motor mow power overload. Motor STOP and try to start again after 1 minute");
     addErrorCounter(ERR_MOW_SENSE);
