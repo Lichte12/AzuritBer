@@ -2573,6 +2573,8 @@ void Robot::checkButton() {
 
 			default:
 				Console.println(F("ButtonPressed Stop Mowing and Reset Error"));
+				spiraleNbTurn = 0;
+				highGrassDetect = false;
 				motorMowEnable = false;
 				buttonCounter = 0;
 				setNextState(STATE_OFF, 0);
