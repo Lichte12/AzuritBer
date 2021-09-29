@@ -51,7 +51,7 @@
 */
 
 // code version
-#define VER "1.55-Azuritber GY-88/GY-521"
+#define VER "1.62-Azuritber GY-521"
 
 
 // sensors
@@ -220,6 +220,7 @@ class Robot
   public:
     String name;
     boolean developerActive;
+    boolean ConsoleToPfod;
     // --------- state machine --------------------------
     byte stateCurr;
     byte stateLast;
@@ -676,6 +677,11 @@ class Robot
     boolean userSwitch2       ;       // user-defined switch 2 (default value)
     boolean userSwitch3       ;       // user-defined switch 3 (default value)
 
+
+    
+    
+    
+    
     
     // --------- charging -------------------------------
 
@@ -690,7 +696,7 @@ class Robot
     float batFullCurrent   ; // current flowing when battery is fully charged
     float startChargingIfBelow; // start charging if battery Voltage is below
     unsigned long chargingTimeout; // safety timer for charging
-    float chgSenseZero    ;       // charge current sense zero point NOT USE
+    float stationHeading    ;       // station heading to init the YAW when leave station (in radian)
     float batSenseFactor       ;     // charge current conversion factor
     float chgSense        ;       // mV/A empfindlichkeit des Ladestromsensors in mV/A (FÃ¼r ACS712 5A = 185)
     char chgChange        ;       // messwertumkehr von - nach +         1oder 0
@@ -730,6 +736,8 @@ class Robot
     byte consoleMode ;
     unsigned long nextTimeButtonCheck ;
     unsigned long nextTimeInfo ;
+    unsigned long nextTimeScreen ;
+    
     unsigned long nextTimePrintConsole;
     byte rollDir;
     unsigned long nextTimeButton ;
@@ -807,6 +815,12 @@ class Robot
     //virtual void RaspberryPISendStat ();
     
     virtual void receivePiPfodCommand (String RpiCmd,float v1,float v2,float v3);
+    
+    virtual void ShowMessage(String message);
+    virtual void ShowMessageln(String message);
+    virtual void ShowMessage(float value);
+    virtual void ShowMessageln(float value);
+    
     virtual void printSettingSerial();
     char* mowPatternNameList(byte mowPatternIndex);
     
@@ -882,6 +896,7 @@ class Robot
 
 
     virtual void beeper();
+    
 
 
     

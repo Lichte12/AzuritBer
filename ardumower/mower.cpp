@@ -214,7 +214,7 @@ Mower::Mower() {
   batFullCurrent  = 0.1;      // current flowing when battery is fully charged
   startChargingIfBelow = 28.0; // start charging if battery Voltage is below
   chargingTimeout = 25200000; // safety timer for charging (ms)  7 hrs
-  chgSenseZero    = 511;        // charge current sense zero point
+  
   batSenseFactor  = 1.11;         // charge current conversion factor   - Empfindlichkeit nimmt mit ca. 39/V Vcc ab
   chgSense        = 185.0;      // mV/A empfindlichkeit des Ladestromsensors in mV/A (FÃ¼r ACS712 5A = 185)
   chgChange       = 0;          // Messwertumkehr von - nach +         1 oder 0
@@ -227,7 +227,7 @@ Mower::Mower() {
   UseBumperDock = false; //bumper is pressed when docking or not
   dockingSpeed   =  60;   //speed docking is (percent of maxspeed)
   autoResetActive  = 0;       // after charging reboot or not
-
+  stationHeading  = 0;  //heading of the charging station to use when no compass
 
   // ------ odometry ------------------------------------
   odometryUse       = 1;       // use odometry?
@@ -318,7 +318,8 @@ void Mower::setup() {
   Console.begin(CONSOLE_BAUDRATE);
   I2Creset();
   Wire.begin();
-  //Wire1.begin();
+ // Wire1.begin();
+ // Wire1.setClock(400000);
   // Flash.test();
 
   /* while (!checkAT24C32()){
