@@ -40,7 +40,7 @@
 #include "RpiRemote.h"
 
 //LJ
-#include "display.h"
+//#include "display.h"
 #include "LED.h"
 //#include "ACROBOTIC_SSD1306.h"
 #include "Screen.h"
