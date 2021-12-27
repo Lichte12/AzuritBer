@@ -62,8 +62,8 @@ Mower::Mower() {
   motorSpeedMaxRpm       = 24;   // motor wheel max RPM (WARNING: do not set too high, so there's still speed control when battery is low!)
   motorSpeedMaxPwm    = 190;  // motor wheel max Pwm  (8-bit PWM=255, 10-bit PWM=1023)
   motorPowerMax     = 19;    // motor wheel max power (Watt)
-  motorSenseRightScale = 1.870; // normal is 1.536 motor right sense scale (mA=(ADC-zero)/scale)
-  motorSenseLeftScale = 1.650; // normal is 1.536 motor left sense scale  (mA=(ADC-zero)/scale)
+  motorSenseRightScale = 1.536; // normal is 1.536 motor right sense scale (mA=(ADC-zero)/scale)
+  motorSenseLeftScale = 1.536; // normal is 1.536 motor left sense scale  (mA=(ADC-zero)/scale)
   motorPowerIgnoreTime = 2000; // time to ignore motor power when start to avoid read the peack on motor start (ms)
   motorZeroSettleTime   = 2000 ; // defaut 3000 how long (ms) to wait for motors to settle at zero speed
   motorRollDegMax    = 100;  // max. roll Deg
@@ -207,15 +207,15 @@ Mower::Mower() {
   batGoHomeIfBelow = 24.0;     // drive home voltage (Volt)
   batSwitchOffIfBelow = 23.0;  // switch off battery if below voltage (Volt)
   batSwitchOffIfIdle = 10;      // switch off battery if idle (minutes)
-  batFactor       = 10.88;     //depend of the resistor divisor on board R12 and R13
-  batChgFactor    = 10.89;     //depend of the resistor divisor on board R9 and R10
+  batFactor       = 11.0;     //depend of the resistor divisor on board R12 and R13, 11 for PCB 1.3
+  batChgFactor    = 11.0;     //depend of the resistor divisor on board R9 and R10, 11 for PCB 1.3
   batFull          = 29.4;     // battery reference Voltage (fully charged) PLEASE ADJUST IF USING A DIFFERENT BATTERY VOLTAGE! FOR a 12V SYSTEM TO 14.4V
   batChargingCurrentMax = 3; // maximum current your charger can devliver
   batFullCurrent  = 0.1;      // current flowing when battery is fully charged
   startChargingIfBelow = 28.0; // start charging if battery Voltage is below
   chargingTimeout = 25200000; // safety timer for charging (ms)  7 hrs
   
-  batSenseFactor  = 1.11;         // charge current conversion factor   - Empfindlichkeit nimmt mit ca. 39/V Vcc ab
+  batSenseFactor  = 1.0;         // charge current conversion factor, PCB1.3 bridged RL = 1.0, PCB1.3 non-bridged RL = 0.5, PCB1.4 bridged = 2.941, PCB 1.4 non bridged = 1.98
   chgSense        = 185.0;      // mV/A empfindlichkeit des Ladestromsensors in mV/A (FÃ¼r ACS712 5A = 185)
   chgChange       = 0;          // Messwertumkehr von - nach +         1 oder 0
   chgNull         = 2;          // Nullduchgang abziehen (1 oder 2)

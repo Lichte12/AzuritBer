@@ -2880,7 +2880,7 @@ void Robot::readSensors() {
 
 
 
-    double batvolt = batFactor * readSensor(SEN_BAT_VOLTAGE) * 3.3 / 4096 ; //readsensor return the ADC value 0 to 4096 so *3.3/4096=voltage on the arduino pin batfactor depend on the resitor on board
+    double batvolt = (batFactor * readSensor(SEN_BAT_VOLTAGE) * 3.3 / 4096) + 0.36 ; //readsensor return the ADC value 0 to 4096 so *3.3/4096=voltage on the arduino pin batfactor depend on the resitor on board, 0.36 for Diode D9
     double chgvolt = batChgFactor * readSensor(SEN_CHG_VOLTAGE) * 3.3 / 4096 ;
     double curramp = batSenseFactor * readSensor(SEN_CHG_CURRENT) * 3.3 / 4096 ;
     /*

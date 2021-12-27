@@ -368,8 +368,8 @@ void RemoteControl::sendMotorMenu(boolean update) {
 
   //bb add
   if (robot->developerActive) {
-    sendSlider("a20", F("MotorSenseLeftScale"), robot->motorSenseLeftScale, "", 0.01, 0.10, 3.00);
-    sendSlider("a21", F("MotorSenseRightScale"), robot->motorSenseRightScale, "", 0.01, 0.10, 3.00);
+    sendSlider("a20", F("MotorSenseLeftScale"), robot->motorSenseLeftScale, "", 0.01, 3.00, 0.10);
+    sendSlider("a21", F("MotorSenseRightScale"), robot->motorSenseRightScale, "", 0.01, 3.00, 0.10);
   }
   //end add
   serialPort->print(F("|a14~for config file:"));
