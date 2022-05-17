@@ -4375,7 +4375,7 @@ void Robot::checkCurrent() {
     if ((motorMowPower >= 0.8 * motorMowPowerMax) || (motorMow2Power >= 0.8 * motorMowPowerMax)) {
       spiraleNbTurn = 0;
       halfLaneNb = 0;
-      highGrassDetect = true;
+      //highGrassDetect = true;
       ShowMessageln("Warning  motorMowPower >= 0.8 * motorMowPowerMax ");
       ////  http://forums.parallax.com/discussion/comment/1326585#Comment_1326585
     }
