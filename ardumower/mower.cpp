@@ -99,7 +99,7 @@ Mower::Mower() {
   motorMowSpeedMinPwm = 160;   // motor mower minimum PWM (only for cutter modulation)
   motorMowPowerMax = 50.0;     // motor mower max power (Watt)
 
-  motorMowSenseScale = 1.536; // motor mower sense scale (mA=(ADC-zero)/scale)
+  motorMowSenseScale = 0.9; // motor mower sense scale (mA=(ADC-zero)/scale) Mod with INA
   motorMowPID.Kp = 0.005;    // motor mower RPM PID controller
   motorMowPID.Ki = 0.01;
   motorMowPID.Kd = 0.01;
