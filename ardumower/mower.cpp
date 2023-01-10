@@ -214,7 +214,7 @@ Mower::Mower() {
   batFullCurrent  = 0.1;      // current flowing when battery is fully charged
   startChargingIfBelow = 28.0; // start charging if battery Voltage is below
   chargingTimeout = 25200000; // safety timer for charging (ms)  7 hrs
-  
+ 
   batSenseFactor  = 1.0;         // charge current conversion factor, PCB1.3 bridged RL = 1.0, PCB1.3 non-bridged RL = 0.5, PCB1.4 bridged = 2.941, PCB 1.4 non bridged = 1.98
   chgSense        = 185.0;      // mV/A empfindlichkeit des Ladestromsensors in mV/A (FÃ¼r ACS712 5A = 185)
   chgChange       = 0;          // Messwertumkehr von - nach +         1 oder 0

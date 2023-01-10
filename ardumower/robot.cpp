@@ -56,6 +56,7 @@
 #define ADDR_ERR_COUNTERS 500 //same adress as azurit
 //carrefull that the  ADDR 600 is used by the IMU calibration
 #define ADDR_ROBOT_STATS 800
+#define ADDR_RFID_LIST 3000 //start adress to rfid list value
 
 //Setting for DHT22------------------------------------
 #define DHTPIN 49                  // temperature sensor DHT22
@@ -71,22 +72,23 @@ RpiRemote MyRpi;
 Screen MyScreen;
 
 
-char* stateNames[] = {"OFF ", "RC  ", "FORW", "ROLL", "REV ", "CIRC", "ERR ", "PFND", "PTRK", "PROL", "PREV", "STAT", "CHARG", "STCHK", "STREV",
-                      "STROL", "STFOR", "MANU", "ROLW", "POUTFOR", "POUTREV", "POUTROLL", "POBSREV", "POBSROLL", "POBSFRWD", "POBSCIRC", "NEXTLANE", "POUTSTOP", "LANEROL1", "LANEROL2",
-                      "ROLLTOIN", "WAITREPEAT", "FRWODO", "TESTCOMPAS", "ROLLTOTRACK",
-                      "STOPTOTRACK", "AUTOCALIB", "ROLLTOFINDYAW", "TESTMOTOR", "FINDYAWSTOP", "STOPONBUMPER",
-                      "STOPCALIB", "SONARTRIG", "STOPSPIRAL", "MOWSPIRAL", "ROT360", "NEXTSPIRE", "ESCAPLANE",
-                      "TRACKSTOP", "ROLLTOTAG", "STOPTONEWAREA", "ROLL1TONEWAREA", "DRIVE1TONEWAREA", "ROLL2TONEWAREA", "DRIVE2TONEWAREA", "WAITSIG2", "STOPTONEWAREA", "ROLLSTOPTOTRACK",
-                      "STOPTOFASTSTART", "CALIBMOTORSPEED", "ACCELFRWRD", "ENDLANESTOP"
-                     };
 
-char* statusNames[] = {"WAIT", "NORMALMOWING", "SPIRALEMOWING", "BACKTOSTATION", "TRACKTOSTART", "MANUAL", "REMOTE", "ERROR", "STATION", "TESTING", "SIGWAIT" , "WIREMOWING"
-                      };
+const char* stateNames[] = {"OFF", "RC", "FORW", "ROLL", "REV", "CIRC", "ERR", "PFND", "PTRK", "PROL", "PREV", "STAT", "CHARG", "STCHK", "STREV",
+                            "STROL", "STFOR", "MANU", "ROLW", "POUTFOR", "POUTREV", "POUTROLL", "POBSREV", "POBSROLL", "POBSFRWD", "POBSCIRC", "NEXTLANE", "POUTSTOP", "LANEROL1", "LANEROL2",
+                            "ROLLTOIN", "WAITREPEAT", "FRWODO", "TESTCOMPAS", "ROLLTOTRACK",
+                            "STOPTOTRACK", "AUTOCALIB", "ROLLTOFINDYAW", "TESTMOTOR", "FINDYAWSTOP", "STOPONBUMPER",
+                            "STOPCALIB", "SONARTRIG", "STOPSPIRAL", "MOWSPIRAL", "ROT360", "NEXTSPIRE", "ESCAPLANE",
+                            "TRACKSTOP", "ROLLTOTAG", "STOPTONEWAREA", "ROLL1TONEWAREA", "DRIVE1TONEWAREA", "ROLL2TONEWAREA", "DRIVE2TONEWAREA", "WAITSIG2", "STOPTONEWAREA", "ROLLSTOPTOTRACK",
+                            "STOPTOFASTSTART", "CALIBMOTORSPEED", "ACCELFRWRD", "ENDLANE", "STARTSTATION",
+                           };
+
+const char* statusNames[] = {"WAIT", "NORMALMOWING", "SPIRALEMOWING", "BACKTOSTATION", "TRACKTOSTART", "MANUAL", "REMOTE", "ERROR", "STATION", "TESTING", "SIGWAIT" , "WIREMOWING"
+                            };
 
 
-char* mowPatternNames[] = {"RAND", "LANE",  "WIRE" , "ZIGZAG"};
-char* consoleModeNames[] = {"sen_counters", "sen_values", "perimeter", "off", "Tracking"};
-
+const char* mowPatternNames[] = {"RAND", "LANE",  "WIRE" , "ZIGZAG"};
+const char* consoleModeNames[] = {"sen_counters", "sen_values", "perimeter", "off", "Tracking"};
+char* rfidToDoNames[] = {"NOTHING", "RTS", "FAST_START", "NEW_AREA", "SPEED", "AREA1", "AREA2", "AREA3"};
 
 unsigned long StartReadAt;
 int distance_find;
@@ -254,6 +256,9 @@ Robot::Robot() {
   nextTimeAddYawMedian = 0;
   nextTimeRobotStats = 0;
   delayToReadVoltageStation = 0;
+  MaxOdoStateDuration = 2000;
+  MaxStateDuration = 2000;
+
 
   //bb
   // nextTimeImuUse = 0;
@@ -274,20 +279,30 @@ Robot::Robot() {
 }
 
 
-char* Robot::stateName() {
+const char* Robot::stateName() {
   return stateNames[stateCurr];
 }
-
-char* Robot::statusName() {
+const char* Robot::statusName() {
   return statusNames[statusCurr];
+}
+const char* Robot::statusNameList(byte statusIndex) {
+  return statusNames[statusIndex];
 }
 
 
-char* Robot::mowPatternName() {
+char* Robot::rfidToDoName() {
+  return rfidToDoNames[rfidToDoCurr];
+}
+
+char* Robot::rfidToDoNameList(byte rfidToDoIndex) {
+  return rfidToDoNames[rfidToDoIndex];
+}
+
+const char* Robot::mowPatternName() {
   return mowPatternNames[mowPatternCurr];
 }
 
-char* Robot::mowPatternNameList(byte mowPatternIndex) {
+const char* Robot::mowPatternNameList(byte mowPatternIndex) {
   return mowPatternNames[mowPatternIndex];
 }
 /*
@@ -329,24 +344,367 @@ void Robot::loadSaveRobotStats(boolean readflag) {
   ShowMessageln(addr);
 }
 
+
+boolean Robot::search_rfid_list(unsigned long TagNr) {
+
+  boolean tag_exist_in_list = false;
+  ptr = head;
+  if (ptr != NULL) {
+
+
+    for (ptr = head; ptr->next != NULL; ptr = ptr->next) {
+      if (ptr->TagNr == TagNr) tag_exist_in_list = true;
+    }
+  }
+  return tag_exist_in_list;
+}
+
+void Robot::rfidTagTraitement(unsigned long TagNr, byte statusCurr) {
+  boolean tagAndStatus_exist_in_list = false;
+  String line01 = "";
+  //struct rfid_list *temp = (struct rfid_list*) malloc(sizeof(rfid_list));
+  ptr = head;
+  if (ptr != NULL) {
+    for (ptr = head; ptr->next != NULL; ptr = ptr->next) {
+      if ((ptr->TagNr == TagNr) && (ptr->TagMowerStatus == statusCurr)) {
+        tagAndStatus_exist_in_list = true;
+        //ptr is locate on the correct record in the list --> exit from the for loop
+        break;
+      }
+    }
+  }
+  if (tagAndStatus_exist_in_list)
+  {
+    //debut du traitement
+    ShowMessage(F("Tag and Status find to do is "));
+    ShowMessageln(F(rfidToDoNameList(ptr->TagToDo)));
+    switch (ptr->TagToDo) {
+
+      case NOTHING:
+        ShowMessageln(F("nothing to do ???"));
+        break;
+      case RTS:
+        ShowMessage("Fast return tag : Turning ");
+        ShowMessage(ptr->TagAngle1);
+        ShowMessage(" degrees and new speed is ");
+        ShowMessageln(ptr->TagSpeed);
+        newtagRotAngle1 = ptr->TagAngle1;
+        motorSpeedMaxPwm = ptr->TagSpeed;
+        setNextState(STATE_PERI_STOP_TOROLL, 0);
+        break;
+      case FAST_START:
+        ShowMessage("Faster start tag. Turning ");
+        ShowMessage(ptr->TagAngle1);
+        ShowMessage("° and new speed is ");
+        ShowMessageln(ptr->TagSpeed);
+        if (areaToGo != 1) { // if a distance is set for start point we can't use the fast start
+          newtagRotAngle1 = ptr->TagAngle1;
+          motorSpeedMaxPwm = ptr->TagSpeed;
+          setNextState(STATE_PERI_STOP_TO_FAST_START, 0);
+        }
+        else
+        {
+          ShowMessageln("Fast start is only valid to change mowing area");
+        }
+        break;
+      case NEW_AREA:
+        ShowMessageln("Not use better to use AREA1,2 or 3");
+        //not use
+        break;
+      case AREA1:
+        line01 = "#SENDER," + String(area1_ip) + ",A1";
+        Serial1.println(line01);
+        line01 = "#SENDER," + String(area2_ip) + ",B0";
+        Serial1.println(line01);
+        line01 = "#SENDER," + String(area3_ip) + ",B0";
+        Serial1.println(line01);
+
+        areaToGo = 1;
+        ShowMessageln("Return to Station area ");
+        motorSpeedMaxPwm = ptr->TagSpeed;
+        newtagRotAngle1 = ptr->TagAngle1;
+        newtagDistance1 = ptr->TagDist1;
+        newtagRotAngle2 = ptr->TagAngle2;
+        newtagDistance2 = ptr->TagDist2;
+        setNextState(STATE_PERI_STOP_TO_NEWAREA, 0);
+        //#stopsender
+        if (areaInMowing == 2) {
+          //ButtonStopArea2_click()
+        }
+        if (areaInMowing == 3) {
+          //ButtonStopArea3_click()
+        }
+        break;
+      case AREA2:
+        //send data to ESP32 to start AREA2 sender and stop AREA1 one
+        line01 = "#SENDER," + String(area1_ip) + ",A0";
+        Serial1.println(line01);
+        line01 = "#SENDER," + String(area2_ip) + ",B1";
+        Serial1.println(line01);
+        if (areaToGo == 2) {
+          ShowMessageln("Go to AREA2");
+          motorSpeedMaxPwm = ptr->TagSpeed;
+          newtagRotAngle1 = ptr->TagAngle1;
+          newtagDistance1 = ptr->TagDist1;
+          newtagRotAngle2 = ptr->TagAngle2;
+          newtagDistance2 = ptr->TagDist2;
+          setNextState(STATE_PERI_STOP_TO_NEWAREA, 0);
+        }
+        break;
+
+      case AREA3:
+        line01 = "#SENDER," + String(area1_ip) + ",A0";
+        Serial1.println(line01);
+        line01 = "#SENDER," + String(area3_ip) + ",B1";
+        Serial1.println(line01);
+        if (areaToGo == 3) {
+          ShowMessageln("Go to AREA3");
+          motorSpeedMaxPwm = ptr->TagSpeed;
+          newtagRotAngle1 = ptr->TagAngle1;
+          newtagDistance1 = ptr->TagDist1;
+          newtagRotAngle2 = ptr->TagAngle2;
+          newtagDistance2 = ptr->TagDist2;
+          setNextState(STATE_PERI_STOP_TO_NEWAREA, 0);
+        }
+        break;
+
+      case SPEED:
+        motorSpeedMaxPwm = ptr->TagSpeed;
+        newtagDistance1 = ptr->TagDist1;
+        whereToResetSpeed =  totalDistDrive + newtagDistance1; // when a speed tag is read it's where the speed is back to maxpwm value
+        ShowMessage("Change to speed  : ");
+        ShowMessage(motorSpeedMaxPwm);
+        ShowMessage(" for next ");
+        ShowMessage(newtagDistance1);
+        ShowMessageln(" centimeters");
+
+        break;
+    }
+  }
+  else
+  {
+    ShowMessageln(F("Tag and Status not match"));
+  }
+}
+
+void Robot::insert_rfid_list(unsigned long TagNr, byte TagMowerStatus, byte TagToDo, int TagSpeed, float TagAngle1, int TagDist1, float TagAngle2, int TagDist2) {
+  struct rfid_list *node = (struct rfid_list*) malloc(sizeof(*node));//allocation dynamique de la memoire
+  if (node == NULL) {
+    ShowMessageln(F("New Rfid tag list insert error "));
+    return;
+  }
+
+  node->TagNr = TagNr;
+  node->TagMowerStatus = TagMowerStatus;
+  node->TagToDo = TagToDo;
+  node->TagSpeed = TagSpeed;
+  node->TagAngle1 = TagAngle1;
+  node->TagDist1 = TagDist1;
+  node->TagAngle2 = TagAngle2;
+  node->TagDist2 = TagDist2;
+  node->next = head;  // def du nouveau noeud au premier
+  head = node; // tete de la liste devient celui que l on a ajouté.
+  rfidListElementCount = rfidListElementCount + 1;
+  ShowMessageln(F("1 RFID TAG insertion OK"));
+  ShowMessage(F("NEW RFID LIST COUNT = "));
+  ShowMessageln(rfidListElementCount);
+}
+void Robot::delete_rfid_list(unsigned long TagNr, byte TagMowerStatus, int pos_into_list) {
+  struct rfid_list *supp_element = NULL;
+  ShowMessage(F("Delete element Nr: "));
+  ShowMessageln(int(pos_into_list));
+  ptr = head;  // move at the beginning of the list
+  for (int i = 1; i < pos_into_list; ++i) {
+    ptr = ptr->next; // move just before the one to delete
+  }
+
+
+  supp_element = ptr->next; //  the one to delete
+  ptr->next = ptr->next->next; //  rewrite the pointer of element before the supress one to the next next one
+  // if(ptr->next == NULL)
+  //         liste->fin = courant;
+  //free (supp_element->donnee);
+  free (supp_element);  // free memory  need maybe more free for detail element
+  rfidListElementCount = rfidListElementCount - 1;
+  ShowMessageln(F("1 RFID TAG suppression OK"));
+  ShowMessage(F("NEW RFID LIST COUNT = "));
+  ShowMessageln(rfidListElementCount);
+}
+
+void Robot::sort_rfid_list() {
+
+  struct rfid_list *p = NULL;
+  struct rfid_list PR ;
+  struct rfid_list *temp = (struct rfid_list*) malloc(sizeof(rfid_list));
+  ptr = head;
+  if (ptr != NULL) {
+    for (temp = head; temp->next != NULL; temp = temp->next) {
+      for (p = temp->next; p != NULL; p = p->next) {
+
+        if (p->TagNr < temp->TagNr) {
+          PR.TagNr = p->TagNr;
+          PR.TagMowerStatus = p->TagMowerStatus;
+          PR.TagToDo = p->TagToDo;
+          PR.TagSpeed = p->TagSpeed;
+          PR.TagAngle1 = p->TagAngle1;
+          PR.TagDist1 = p->TagDist1;
+          PR.TagAngle2 = p->TagAngle2;
+          PR.TagDist2 = p->TagDist2;
+
+          //p->TagNr = temp->TagNr;
+          p->TagNr = temp->TagNr;
+          p->TagMowerStatus = temp->TagMowerStatus;
+          p->TagToDo = temp->TagToDo;
+          p->TagSpeed = temp->TagSpeed;
+          p->TagAngle1 = temp->TagAngle1;
+          p->TagDist1 = temp->TagDist1;
+          p->TagAngle2 = temp->TagAngle2;
+          p->TagDist2 = temp->TagDist2;
+
+
+          //temp->TagNr = PR.TagNr;
+          temp->TagNr = PR.TagNr;
+          temp->TagMowerStatus = PR.TagMowerStatus;
+          temp->TagToDo = PR.TagToDo;
+          temp->TagSpeed = PR.TagSpeed;
+          temp->TagAngle1 = PR.TagAngle1;
+          temp->TagDist1 = PR.TagDist1;
+          temp->TagAngle2 = PR.TagAngle2;
+          temp->TagDist2 = PR.TagDist2;
+
+
+        }
+      }
+    }
+
+
+
+  }
+
+}
+
+
+
+
+
+void Robot::print_rfid_list() {
+  ShowMessageln("RFID LIST :");
+  ptr = head;
+  //struct rfid_list *ptr = head;
+
+  // rfid todo list
+  //enum { NOTHING, RTS, FAST_START, NEW_AREA, SPEED, AREA1, AREA2, AREA3 };
+  while (ptr != NULL) {  //parcours jusqu au dernier
+    ShowMessage(String(ptr->TagNr, HEX));
+    ShowMessage(",");
+    ShowMessage(statusNames[ptr->TagMowerStatus]);
+    ShowMessage(",");
+    ShowMessage(rfidToDoNames[ptr->TagToDo]);
+    ShowMessage(",");
+    ShowMessage(ptr->TagSpeed);
+    ShowMessage(",");
+    ShowMessage(ptr->TagAngle1);
+    ShowMessage(",");
+    ShowMessage(ptr->TagDist1);
+    ShowMessage(",");
+    ShowMessage(ptr->TagAngle2);
+    ShowMessage(",");
+    ShowMessageln(ptr->TagDist2);
+    ptr = ptr->next;
+  }
+
+}
+
+void Robot::saveRfidList() {
+  boolean readflag = false;
+  int addr = ADDR_RFID_LIST;
+  short magic = MAGIC;
+  eereadwrite(readflag, addr, magic); // magic
+  ShowMessage("RFID LIST COUNT = ");
+  ShowMessageln(rfidListElementCount);
+  eereadwrite(readflag, addr, rfidListElementCount); // magic
+  ptr = head;
+  while (ptr != NULL) {  //parcours jusqu au dernier
+    eereadwrite(readflag, addr, ptr->TagNr);
+    eereadwrite(readflag, addr, ptr->TagMowerStatus);
+    eereadwrite(readflag, addr, ptr->TagToDo);
+    eereadwrite(readflag, addr, ptr->TagSpeed);
+    eereadwrite(readflag, addr, ptr->TagAngle1);
+    eereadwrite(readflag, addr, ptr->TagDist1);
+    eereadwrite(readflag, addr, ptr->TagAngle2);
+    eereadwrite(readflag, addr, ptr->TagDist2);
+    ptr = ptr->next;
+  }
+  ShowMessage(F("RFID LIST address Start="));
+  ShowMessageln(ADDR_RFID_LIST);
+  ShowMessage(F("RFID LIST address Stop="));
+  ShowMessageln(addr);
+}
+
+
+void Robot::loadRfidList() {
+  byte rfidListElementTotal = 0;
+  boolean readflag = true;
+  int addr = ADDR_RFID_LIST;
+  struct rfid_list PR ;
+  short magic = 0;
+  eereadwrite(readflag, addr, magic); // magic
+  if (magic != MAGIC) {
+    ShowMessageln(F("RFID LIST USERDATA: NO EEPROM RFID LIST DATA"));
+    ShowMessageln(F("PLEASE SAVE YOUR RFID LIST ONCE"));
+    addErrorCounter(ERR_EEPROM_DATA);
+    setNextState(STATE_ERROR, 0);
+    return;
+  }
+  eereadwrite(readflag, addr, rfidListElementTotal); // magic
+  ShowMessage("rfidListElementTotal = ");
+  ShowMessageln(rfidListElementTotal);
+  for (int i = 0; i < rfidListElementTotal; i++) {
+    ShowMessage(i);
+    ShowMessageln ("TAG READ");
+    eereadwrite(readflag, addr, PR.TagNr);
+    eereadwrite(readflag, addr, PR.TagMowerStatus);
+    eereadwrite(readflag, addr, PR.TagToDo);
+    eereadwrite(readflag, addr, PR.TagSpeed);
+    eereadwrite(readflag, addr, PR.TagAngle1);
+    eereadwrite(readflag, addr, PR.TagDist1);
+    eereadwrite(readflag, addr, PR.TagAngle2);
+    eereadwrite(readflag, addr, PR.TagDist2);
+    insert_rfid_list(PR.TagNr, PR.TagMowerStatus, PR.TagToDo, PR.TagSpeed, PR.TagAngle1, PR.TagDist1, PR.TagAngle2, PR.TagDist2);
+
+  }
+  ShowMessage(F("RFID LIST address Start="));
+  ShowMessageln(ADDR_RFID_LIST);
+  ShowMessage(F("RFID LIST address Stop="));
+  ShowMessageln(addr);
+  sort_rfid_list();
+  print_rfid_list();
+}
+
 void Robot::loadSaveErrorCounters(boolean readflag) {
-  if (readflag) ShowMessageln(F("Load ErrorCounters"));
-  else ShowMessageln(F("Save ErrorCounters"));
+  if (readflag) {
+    ShowMessage(F("Load ErrorData "));
+  }
+  else {
+    ShowMessage(F("Save ErrorData "));
+  }
   int addr = ADDR_ERR_COUNTERS;
   short magic = 0;
   if (!readflag) magic = MAGIC;
   eereadwrite(readflag, addr, magic); // magic
   if ((readflag) && (magic != MAGIC)) {
+    ShowMessageln(F("*****************************************"));
     ShowMessageln(F("EEPROM ERR COUNTERS: NO EEPROM ERROR DATA"));
     ShowMessageln(F("PLEASE CHECK AND SAVE YOUR SETTINGS"));
+    ShowMessageln(F("*****************************************"));
     addErrorCounter(ERR_EEPROM_DATA);
     setNextState(STATE_ERROR, 0);
     return;
   }
   eereadwrite(readflag, addr, errorCounterMax);
-  ShowMessage(F("ErrorCounters address Start="));
-  ShowMessageln(ADDR_ERR_COUNTERS);
-  ShowMessage(F("ErrorCounters address Stop="));
+  ShowMessage(F("Address Start= "));
+  ShowMessage(ADDR_ERR_COUNTERS);
+  ShowMessage(F(" Stop= "));
   ShowMessageln(addr);
 }
 
@@ -360,8 +718,12 @@ void Robot::loadSaveUserSettings(boolean readflag) {
 
   if ((readflag) && (magic != MAGIC)) {
 
-    ShowMessageln(F("EEPROM USERDATA: NO EEPROM USER DATA"));
-    ShowMessageln(F("PLEASE CHECK AND SAVE YOUR SETTINGS"));
+    ShowMessageln(F("************************************"));
+    ShowMessageln(F("       NO EEPROM USER DATA"));
+    ShowMessageln(F("PLEASE CHECK AND SAVE YOUR SETTINGS "));
+    ShowMessageln(F("  FACTORY SETTING ARE USED INSTEAD  "));
+    ShowMessageln(F("************************************"));
+
     addErrorCounter(ERR_EEPROM_DATA);
     setNextState(STATE_ERROR, 0);
     return;
@@ -500,9 +862,10 @@ void Robot::loadSaveUserSettings(boolean readflag) {
   eereadwrite(readflag, addr, dockingSpeed);
   eereadwrite(readflag, addr, rfidUse);
   eereadwrite(readflag, addr, compassRollSpeedCoeff);
+  eereadwrite(readflag, addr, useMqtt);
   if (readflag)
   {
-    ShowMessage(F("UserSettings are read from EEprom Address : "));
+    ShowMessage(F("UserSettings OK from Address : "));
     ShowMessage(ADDR_USER_SETTINGS);
     ShowMessage(F(" To "));
     ShowMessageln(addr);
@@ -510,7 +873,7 @@ void Robot::loadSaveUserSettings(boolean readflag) {
   }
   else
   {
-    ShowMessage(F("UserSettings are saved from EEprom Address : "));
+    ShowMessage(F("UserSettings are saved from Address : "));
     ShowMessage(ADDR_USER_SETTINGS);
     ShowMessage(F(" To "));
     ShowMessageln(addr);
@@ -854,6 +1217,11 @@ void Robot::printSettingSerial() {
   ShowMessage  (F("RaspberryPIUse  : "));
   ShowMessageln(RaspberryPIUse);
 
+  // ----- MQTT --------------
+  ShowMessageln(F("---------- MQTT        ------ "));
+  ShowMessage  (F("useMqtt  : "));
+  ShowMessageln(useMqtt);
+
   // ----- other ----------------------------------------------------
   ShowMessageln(F("---------- other ------------"));
   ShowMessage  (F("buttonUse              : "));
@@ -1060,9 +1428,9 @@ void Robot::setMotorMowPWM(int pwm, boolean useAccel) {
 
 // sets wheel motor actuators
 // - driver protection: delays polarity change until motor speed (EMV) is zero
-//   http://wiki.ardumower.de/images/a/a5/Motor_polarity_switch_protection.png
-// - optional: ensures that the motors (and gears) are not switched to 0% (or 100%) too fast (motorAccel)
-void Robot::setMotorPWM(int pwmLeft, int pwmRight, boolean useAccel) {
+// ensures that the motors (and gears) are not switched to 0% (or 100%) too fast (motorAccel)
+void Robot::setMotorPWM(int pwmLeft, int pwmRight) {
+
   int TaC = int(millis() - lastSetMotorSpeedTime);    // sampling time in millis
   lastSetMotorSpeedTime = millis();
   if (TaC > 1000) TaC = 1;
@@ -1096,8 +1464,9 @@ void Robot::setMotorPWM(int pwmLeft, int pwmRight, boolean useAccel) {
       ShowMessage (pwmLeft);
       ShowMessage(" state ");
       ShowMessageln(stateNames[stateCurr]);
-      if (motorLeftZeroTimeout != 0) pwmLeft = motorLeftPWMCurr - motorLeftPWMCurr * ((float)TaC) / 200.0; // reduce speed
     }
+    if (motorLeftZeroTimeout != 0) pwmLeft = motorLeftPWMCurr - motorLeftPWMCurr * ((float)TaC) / 200.0; // reduce speed
+
   }
   if ( ((pwmRight < 0) && (motorRightPWMCurr > 0)) || ((pwmRight > 0) && (motorRightPWMCurr < 0)) ) { // slowing before reverse
     if (developerActive) {
@@ -1108,57 +1477,19 @@ void Robot::setMotorPWM(int pwmLeft, int pwmRight, boolean useAccel) {
       ShowMessage (pwmRight);
       ShowMessage("  On state ");
       ShowMessageln(stateNames[stateCurr]);
-      if (motorRightZeroTimeout != 0) pwmRight = motorRightPWMCurr - motorRightPWMCurr * ((float)TaC) / 200.0; // reduce speed
     }
+    if (motorRightZeroTimeout != 0) pwmRight = motorRightPWMCurr - motorRightPWMCurr * ((float)TaC) / 200.0; // reduce speed
+
   }
 
 
-  if (useAccel) {
-    // http://phrogz.net/js/framerate-independent-low-pass-filter.html
-    // smoothed += elapsedTime * ( newValue - smoothed ) / smoothing;
-    if ((abs(pwmLeft) - abs(motorLeftPWMCurr)) > 0) motorLeftChange = motorAccel; //we are in accel mode
-    else motorLeftChange = 500; // we are in breaking mode
-    if ((abs(pwmRight) - abs(motorRightPWMCurr)) > 0) motorRightChange = motorAccel;
-    else motorRightChange = 500;
-
-
-    motorLeftPWMCurr += int(TaC) * (pwmLeft - motorLeftPWMCurr) / motorLeftChange;
-    motorRightPWMCurr +=  int(TaC) * (pwmRight - motorRightPWMCurr) / motorRightChange;
-    /*
-        ShowMessage(" motorLeftZeroTimeout=");
-        ShowMessage (motorLeftZeroTimeout);
-        ShowMessage(" motorLeftChange=");
-        ShowMessage (motorLeftChange);
-        ShowMessage(" pwmRight=");
-        ShowMessage (pwmRight);
-        ShowMessage(" motorRightPWMCurr=");
-        ShowMessage (motorRightPWMCurr);
-        ShowMessage(" pwmLeft=");
-        ShowMessage (pwmLeft);
-        ShowMessage(" motorLeftPWMCurr=");
-        ShowMessageln (motorLeftPWMCurr);
-         if (motorLeftPWMCurr >255) {
-          motorLeftPWMCurr=255;
-          ShowMessageln ("motorLeftPWMCurr 2555555555555555555555555555555555555555");
-          }
-          if (motorRightPWMCurr >255) motorRightPWMCurr=255;
-    */
-
-  }
-  /*
-    else
-    {
-    motorLeftPWMCurr = pwmLeft;
-    motorRightPWMCurr = pwmRight;
-    }
-  */
   motorLeftPWMCurr = pwmLeft;
   motorRightPWMCurr = pwmRight;
 
   if (abs(motorLeftRpmCurr) < 1) motorLeftZeroTimeout = max(0, ((int)(motorLeftZeroTimeout - TaC)) );
-  else motorLeftZeroTimeout = 500;
+  else motorLeftZeroTimeout = 1000;
   if (abs(motorRightRpmCurr) < 1) motorRightZeroTimeout = max(0, ((int)(motorRightZeroTimeout - TaC)) );
-  else motorRightZeroTimeout = 500;
+  else motorRightZeroTimeout = 1000;
 
   if (stateCurr != STATE_OFF) {
     /*
@@ -1191,7 +1522,7 @@ void Robot::OdoRampCompute() { //execute only one time when a new state executio
   //Compute when you need to brake the 2 wheels to stop at the ODO
   //Compute the estimate duration of the state so can force next state if the mower is stuck
   //bber400
-  motorSpeedRpmMedian.clear();
+  //motorSpeedRpmMedian.clear();
 
 
   stateStartOdometryLeft = odometryLeft;
@@ -1508,42 +1839,28 @@ void Robot::motorControlOdo() {
       {
         //bber400 //adjust RPM speed
         //PID version
+
+
         motorRightPID.x = motorRightRpmCurr;
         motorRightPID.w = motorSpeedMaxRpm;
-        motorRightPID.y_min = -motorSpeedMaxPwm;       // Regel-MIN
+        motorRightPID.y_min = -motorSpeedMaxPwm;
         motorRightPID.y_max = motorSpeedMaxPwm;  // Regel-MAX
         motorRightPID.max_output = motorSpeedMaxPwm;   // Begrenzung
         motorRightPID.compute();
         //ShowMessageln(motorRightPID.y);
         motorRpmCoeff = (100 + motorRightPID.y) / 100;
-        if (motorRpmCoeff < 0.80) motorRpmCoeff = 0.80;
-        if (motorRpmCoeff > 1.20) motorRpmCoeff = 1.20;
+        if (motorRpmCoeff < 0.50) motorRpmCoeff = 0.50;
+        if (motorRpmCoeff > 2.00) motorRpmCoeff = 2.00;
 
-        /*
-                //median version
-                //add median on current RPM
-                motorSpeedRpmMedian.add(motorRightRpmCurr + motorLeftRpmCurr);
-                if (motorSpeedRpmMedian.getCount() >= 33) { //check each 33 * 15 millisecondes = 0.5 secondes
-                  //ShowMessageln(motorSpeedRpmMedian.getAverage(8)/2);
-                  //motorRpmCoeff = float((2 * motorSpeedMaxRpm / motorSpeedRpmMedian.getAverage(8))) ;
-                  //if (motorRpmCoeff < 0.50) motorRpmCoeff = 0.50;
-                  //if (motorRpmCoeff > 1.50) motorRpmCoeff = 1.50;
-                  motorSpeedRpmMedian.clear();
-                  ShowMessage(motorRpmCoeff);
-                  ShowMessage(" / ");
-                  ShowMessage(motorRightPID.y);
-                  ShowMessage(" / ");
-                  ShowMessageln(rightSpeed);
-                }
-        */
+
       }
 
       if ((sonarSpeedCoeff != 1) || (!autoAdjustSlopeSpeed)) { //do not change speed if sonar is activate
         motorRpmCoeff = 1;
       }
 
-      rightSpeed =  (motorRpmCoeff  * rightSpeed) + imuDirPID.y / 2;
-      leftSpeed =  (motorRpmCoeff  * leftSpeed) - imuDirPID.y / 2;
+      rightSpeed = motorRpmCoeff * (rightSpeed + imuDirPID.y / 2);
+      leftSpeed =  motorRpmCoeff * (leftSpeed - imuDirPID.y / 2);
 
 
 
@@ -1599,16 +1916,17 @@ void Robot::motorControlOdo() {
         motorRightPID.compute();
         //ShowMessageln(motorRightPID.y);
         motorRpmCoeff = (100 + motorRightPID.y) / 100;
-        if (motorRpmCoeff < 0.80) motorRpmCoeff = 0.80;
-        if (motorRpmCoeff > 1.20) motorRpmCoeff = 1.20;
+        if (motorRpmCoeff < 0.50) motorRpmCoeff = 0.50;
+        if (motorRpmCoeff > 2.00) motorRpmCoeff = 2.00;
 
         if ((sonarSpeedCoeff != 1) || (!autoAdjustSlopeSpeed)) { //do not change speed if sonar is activate
           motorRpmCoeff = 1;
         }
 
-        rightSpeed =  (motorRpmCoeff  * rightSpeed) + imuDirPID.y / 2;
-        leftSpeed =  (motorRpmCoeff  * leftSpeed) - imuDirPID.y / 2;
-
+        //rightSpeed =  (motorRpmCoeff  * rightSpeed) + imuDirPID.y / 2;
+        // leftSpeed =  (motorRpmCoeff  * leftSpeed) - imuDirPID.y / 2;
+        rightSpeed = motorRpmCoeff * (rightSpeed + imuDirPID.y / 2);
+        leftSpeed =  motorRpmCoeff * (leftSpeed - imuDirPID.y / 2);
 
       }
       else   /// use only the odometry  for straight line
@@ -1699,7 +2017,7 @@ void Robot::motorControlOdo() {
   }
 
 
-  setMotorPWM(leftSpeed, rightSpeed, false );
+  setMotorPWM(leftSpeed, rightSpeed);
 }
 
 
@@ -1765,7 +2083,7 @@ void Robot::motorControlPerimeter() {
       ShowMessage(";");
       ShowMessageln(perimeterLastTransitionTime);
     }
-    setMotorPWM( leftSpeedperi, rightSpeedperi, false);
+    setMotorPWM( leftSpeedperi, rightSpeedperi);
 
     lastTimeForgetWire = millis();
 
@@ -1849,7 +2167,7 @@ void Robot::motorControlPerimeter() {
     rightSpeedperi = rightSpeedperi - (66 - (millis() - stateStartTime) / 30);
   }
 
-  setMotorPWM( leftSpeedperi, rightSpeedperi, false);
+  setMotorPWM( leftSpeedperi, rightSpeedperi);
 
   if (abs(perimeterMag) < perimeterMagMaxValue / 4) { //250 can be replace by timedOutIfBelowSmag to be tested
     perimeterLastTransitionTime = millis(); //initialise perimeterLastTransitionTime if perfect sthraith line
@@ -1894,10 +2212,9 @@ void Robot::checkOdometryFaults() {
 
 void Robot::motorControl() {
   if (millis() < nextTimeMotorControl) return;
-  nextTimeMotorControl = millis() + 200;  // 10 at the original
+  nextTimeMotorControl = millis() + 100;  // 10 at the original
   static unsigned long nextMotorControlOutputTime = 0;
 
-  // Regelbereich entspricht maximaler PWM am Antriebsrad (motorSpeedMaxPwm), um auch an Steigungen hÃ¶chstes Drehmoment fÃ¼r die Solldrehzahl zu gewÃ¤hrleisten
   motorLeftPID.w = motorLeftSpeedRpmSet;               // SOLL
   motorRightPID.w = motorRightSpeedRpmSet;             // SOLL
 
@@ -1910,37 +2227,40 @@ void Robot::motorControl() {
       motorRightPID.w = motorRightSpeedRpmSet + RLdiff / 2;
     }
   }
+
+  //left wheel -------------------------------------
   motorLeftPID.x = motorLeftRpmCurr;                 // IST
-  // if (millis() < stateStartTime + motorZeroSettleTime) motorLeftPID.w = 0; // get zero speed first after state change
   if ((stateCurr == STATE_OFF)) motorLeftPID.w = 0; // to be sure the motor stop when OFF
   motorLeftPID.y_min = -motorSpeedMaxPwm;        // Regel-MIN
   motorLeftPID.y_max = motorSpeedMaxPwm;     // Regel-MAX
   motorLeftPID.max_output = motorSpeedMaxPwm;    // Begrenzung
   motorLeftPID.compute();
   int leftSpeed = motorLeftPWMCurr + motorLeftPID.y;
-  if (motorLeftSpeedRpmSet >= 0) leftSpeed = min( max(0, leftSpeed), motorSpeedMaxPwm);
+  if (motorLeftSpeedRpmSet > 0) leftSpeed = min( max(0, leftSpeed), motorSpeedMaxPwm);
   if (motorLeftSpeedRpmSet < 0) leftSpeed = max(-motorSpeedMaxPwm, min(0, leftSpeed));
 
-  // Regelbereich entspricht maximaler PWM am Antriebsrad (motorSpeedMaxPwm), um auch an Steigungen hÃ¶chstes Drehmoment fÃ¼r die Solldrehzahl zu gewÃ¤hrleisten
+  //right wheel -------------------------------------
   motorRightPID.Kp = motorLeftPID.Kp;
   motorRightPID.Ki = motorLeftPID.Ki;
   motorRightPID.Kd = motorLeftPID.Kd;
   motorRightPID.x = motorRightRpmCurr;               // IST
-  // if (millis() < stateStartTime + motorZeroSettleTime) motorRightPID.w = 0; // get zero speed first after state change
   if ((stateCurr == STATE_OFF)) motorRightPID.w = 0; // to be sure the motor stop when OFF
   motorRightPID.y_min = -motorSpeedMaxPwm;       // Regel-MIN
   motorRightPID.y_max = motorSpeedMaxPwm;        // Regel-MAX
   motorRightPID.max_output = motorSpeedMaxPwm;   // Begrenzung
   motorRightPID.compute();
   int rightSpeed = motorRightPWMCurr + motorRightPID.y;
-  if (motorRightSpeedRpmSet >= 0) rightSpeed = min( max(0, rightSpeed), motorSpeedMaxPwm);
+  //limit to max speed
+  if (motorRightSpeedRpmSet > 0) rightSpeed = min( max(0, rightSpeed), motorSpeedMaxPwm);
   if (motorRightSpeedRpmSet < 0) rightSpeed = max(-motorSpeedMaxPwm, min(0, rightSpeed));
 
   if ( (abs(motorLeftPID.x) < 2) && (abs(motorLeftPID.w) < 0.1) ) leftSpeed = 0; // ensures PWM is really zero
   if ( (abs(motorRightPID.x)  < 2) && (abs(motorRightPID.w) < 0.1) ) rightSpeed = 0; // ensures PWM is really zero
 
-  /*  if (millis() >= nextMotorControlOutputTime){
-      nextMotorControlOutputTime = millis() + 1000;
+
+  /*
+    if (millis() >= nextMotorControlOutputTime) {
+      nextMotorControlOutputTime = millis() + 50;
       ShowMessage("PID x=");
       ShowMessage(motorLeftPID.x);
       ShowMessage("\tPID w=");
@@ -1952,7 +2272,7 @@ void Robot::motorControl() {
     }
   */
 
-  setMotorPWM( leftSpeed, rightSpeed, false );
+  setMotorPWM( leftSpeed, rightSpeed);
 
 
 }
@@ -1969,7 +2289,7 @@ void Robot::motorMowControl() {
     motorMowPowerMedian.add(motorMowPower);
     if (motorMowPowerMedian.getCount() > 10) { //check each 1 secondes
       int prevcoeff =  motorMowPwmCoeff;
-      motorMowPwmCoeff = int((100 * motorMowPowerMedian.getAverage(4)) / (0.5 * motorMowPowerMax));
+      motorMowPwmCoeff = int((100 * motorMowPowerMedian.getAverage(4)) / (0.8 * motorMowPowerMax));
       if (motorMowPwmCoeff < prevcoeff) {
         //filter on speed reduce to keep the mow speed high for longuer duration
         motorMowPwmCoeff = int((0.1) * motorMowPwmCoeff + (0.9) * prevcoeff);// use only 10% of the new value
@@ -2063,14 +2383,10 @@ void Robot::setup()  {
   ADCMan.begin();
   PinMan.begin();
   if (RaspberryPIUse) MyRpi.init();
-
-
-
   //------------------------  SCREEN parts  ----------------------------------------
   if (Enable_Screen) {
     MyScreen.init();
   }
-
   //setDefaultTime();
   //init of timer for factory setting
   for (int i = 0; i < MAX_TIMERS; i++) {
@@ -2089,13 +2405,13 @@ void Robot::setup()  {
     timer[i].rfidBeacon = 0;
   }
   ActualRunningTimer = 99;
-  setMotorPWM(0, 0, false);
+  setMotorPWM(0, 0);
   loadSaveErrorCounters(true);
   loadUserSettings();
   if (!statsOverride) loadSaveRobotStats(true);
   else loadSaveRobotStats(false);
   setUserSwitches();
-
+  if (rfidUse) loadRfidList();
 
   if (imuUse) imu.begin();
 
@@ -2104,11 +2420,11 @@ void Robot::setup()  {
     perimeter.changeArea(1);
     perimeter.begin(pinPerimeterLeft, pinPerimeterRight);
   }
-  //if (perimeterUse) perimeter.begin(pinPerimeterCenter, pinPerimeterRight);
 
   if (!buttonUse) {
     // robot has no ON/OFF button => start immediately
-    setNextState(STATE_FORWARD_ODO, 0);
+    // remove this option because it's too dangerous to start the mow motor directly on powerup
+    //setNextState(STATE_FORWARD_ODO, 0);
   }
 
   if (DHT22Use) {
@@ -2147,9 +2463,17 @@ void Robot::setup()  {
   }
 
   nextTimeInfo = millis();
-
-
-
+  /*
+    rfidListElementCount = 0;
+    for(int i=0;i<10;i++){
+    insert_rfid_list(1924717461, 3, 0, 100, 170, 2, 90, 10);
+    insert_rfid_list(2444483477, 4, 1, 240, -170, 2, -90, 10);
+    insert_rfid_list(2394151829, 11, 2, 200, 27, 3, 9, 10);
+    insert_rfid_list(1082317461, 0, 4, 220, 37, 4, 9, 10);
+    }
+    sort_rfid_list();
+    print_rfid_list();
+  */
 }
 
 
@@ -2290,39 +2614,39 @@ void Robot::delayInfo(int ms) {
 
 void Robot::testMotors() {
   motorLeftPWMCurr = 0; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr);
 
   ShowMessageln(F("testing left motor (forward) half speed..."));
   delay(100);
   motorLeftPWMCurr = motorSpeedMaxPwm / 2; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
   delayInfo(5000);
   motorLeftPWMCurr = 0; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
 
   ShowMessageln(F("testing left motor (reverse) full speed..."));
   delay(100);
   motorLeftPWMCurr = -motorSpeedMaxPwm; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
   delayInfo(5000);
   motorLeftPWMCurr = 0; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
 
   ShowMessageln(F("testing right motor (forward) half speed..."));
   delay(100);
   motorLeftPWMCurr = 0; motorRightPWMCurr = motorSpeedMaxPwm / 2;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
   delayInfo(5000);
   motorLeftPWMCurr = 0; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
 
   ShowMessageln(F("testing right motor (reverse) full speed..."));
   delay(100);
   motorLeftPWMCurr = 0; motorRightPWMCurr = -motorSpeedMaxPwm;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
   delayInfo(5000);
   motorLeftPWMCurr = 0; motorRightPWMCurr = 0;
-  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr, false);
+  setMotorPWM(motorLeftPWMCurr, motorRightPWMCurr) ;
 }
 
 void Robot::menu() {
@@ -2616,7 +2940,7 @@ void Robot::checkButton() {
 
           if (stateCurr == STATE_STATION) {
             setActuator(ACT_CHGRELAY, 0);
-            setNextState(STATE_STATION_REV, 0);
+            setNextState(STATE_START_FROM_STATION, 1);
           }
 
           else {
@@ -2636,7 +2960,7 @@ void Robot::checkButton() {
           if (RaspberryPIUse) MyRpi.SendStatusToPi();
           if (stateCurr == STATE_STATION) {
             setActuator(ACT_CHGRELAY, 0);
-            setNextState(STATE_STATION_REV, 0);
+            setNextState(STATE_START_FROM_STATION, 1);
           }
 
           else {
@@ -2649,6 +2973,7 @@ void Robot::checkButton() {
         else if (buttonCounter == 3) {
           if (stateCurr == STATE_STATION) return;
           //go to station
+          motorMowEnable = false;
           periFindDriveHeading = scalePI(imu.ypr.yaw);
           areaToGo = 1;
           whereToStart = 99999;
@@ -2666,18 +2991,29 @@ void Robot::checkButton() {
 
   }
 }
+
 void Robot::newTagFind() {
   if (millis() >= nextTimeSendTagToPi) {
     nextTimeSendTagToPi = millis() + 10000;
     ShowMessage("Find a tag : ");
     ShowMessageln(rfidTagFind);
+    unsigned long rfidTagFind_long = hstol(rfidTagFind);
+
+    //bber200
     if (rfidUse) {
-      if (RaspberryPIUse) MyRpi.SendRfidToPi();
+
+      if (search_rfid_list(rfidTagFind_long)) {
+        rfidTagTraitement(rfidTagFind_long, statusCurr);
+      }
+      else
+      {
+        ShowMessage("Auto insert Wait tag : ");
+        ShowMessageln(rfidTagFind);
+        insert_rfid_list(rfidTagFind_long , 0, 0, 100, 1, 1, 1, 1);
+        sort_rfid_list();
+      }
     }
   }
-
-
-
 }
 
 void Robot::readSensors() {
@@ -2725,10 +3061,6 @@ void Robot::readSensors() {
 
 
   if ((stateCurr != STATE_STATION) && (stateCurr != STATE_STATION_CHARGING) && (perimeterUse) && (millis() >= nextTimePerimeter)) {
-    //bber2
-
-
-
     nextTimePerimeter = millis() +  15;
     if (perimeter.read2Coil) {
       perimeterMagRight = readSensor(SEN_PERIM_RIGHT);
@@ -2744,6 +3076,12 @@ void Robot::readSensors() {
 	}
 	
     perimeterMag = readSensor(SEN_PERIM_LEFT);
+    perimeterMedian.add(perimeterMag);
+    if (perimeterMedian.isFull()) {
+      perimeterNoise = perimeterMedian.getHighest() - perimeterMedian.getLowest();
+      perimeterMedian.clear();
+    }
+
     if ((perimeter.isInside(0) != perimeterInside)) {
       perimeterCounter++;
       perimeterLastTransitionTime = millis();
@@ -2930,7 +3268,7 @@ void Robot::setDefaults() {
 void Robot::setNextState(byte stateNew, byte dir) {
   stateTime = millis() - stateStartTime; //last state duration
   if (stateNew == stateCurr) return;
-
+  String line01 = "";
   // evaluate new state
   stateNext = stateNew;
   rollDir = dir;
@@ -3011,15 +3349,25 @@ void Robot::setNextState(byte stateNew, byte dir) {
 
       break;
 
+    case STATE_START_FROM_STATION: //when start in auto mode the mower first initialize the IMU and perimeter sender
+      motorSpeedMaxPwm = motorInitialSpeedMaxPwm ;
+      motorMowEnable = false; //mow motor start later when leave the perimeter wire
+      nextTimeToDmpAutoCalibration = millis() + delayBetweenTwoDmpAutocalib * 1000; //set the next time for calib
+      readDHT22();
+      ShowMessageln("Start sender1");
+      line01 = "#SENDER," + String(area1_ip) + ",A1";
+      Serial1.println(line01);
+      ShowMessageln("Stop sender2");
+      line01 = "#SENDER," + String(area2_ip) + ",B0";
+      Serial1.println(line01);
+      ShowMessageln("Stop sender3");
+      line01 = "#SENDER," + String(area3_ip) + ",B0";
+      Serial1.println(line01);
+      setBeeper(600, 40, 5, 500, 0 );
+      MaxStateDuration = 6000; // 6 secondes beep and pause before rev
+      break;
 
     case STATE_STATION_REV: //when start in auto mode the mower first reverse to leave the station
-
-      if (!CompassUse) { //set the yaw heading to zero when mower leave station if compass is not use
-        ShowMessageln("Imu Heading is reset to Station Heading");
-        //CompassGyroOffset=distancePI( scalePI(ypr.yaw-CompassGyroOffset), comYaw);
-        imu.CompassGyroOffset = scalePI(-imu.ypr.yaw + stationHeading / 180 * PI);
-
-      }
 
       statusCurr = TRACK_TO_START;
       if (RaspberryPIUse) MyRpi.SendStatusToPi();
@@ -3180,9 +3528,24 @@ void Robot::setNextState(byte stateNew, byte dir) {
 
 
     case STATE_PERI_OUT_STOP: //in auto mode and forward slow down before stop and reverse
+
+      if (mowPatternCurr == MOW_LANES) {  //in lane mowing if the mower run over the wire while nextlane it's a corner
+        if (stateCurr == STATE_NEXT_LANE_FORW) {  // change to mow random if the wire is detected
+          mowPatternDuration = mowPatternDurationMax - 3 ; //set the mow_random for the next 3 minutes
+          ShowMessageln("Find a corner change to Random for 3 minutes ");
+          mowPatternCurr = MOW_RANDOM; //change the pattern each x minutes
+          laneUseNr = laneUseNr + 1;
+          findedYaw = 999;
+          justChangeLaneDir = true;
+          nextTimeToDmpAutoCalibration = millis(); // so the at the end of the next line a calibration occur
+          if (laneUseNr > 3) laneUseNr = 1;
+        }
+      }
+
+
       //-------------------------------Verify if it's time to change mowing pattern
       if (mowPatternDuration > mowPatternDurationMax) {
-        ShowMessageln(" mowPatternCurr  change ");
+        ShowMessageln("mowPatternCurr  change ");
         mowPatternCurr = (mowPatternCurr + 1) % 2; //change the pattern each x minutes
         mowPatternDuration = 0;
       }
@@ -4036,7 +4399,7 @@ void Robot::setNextState(byte stateNew, byte dir) {
       stateEndOdometryRight = odometryRight;
       stateEndOdometryLeft = odometryLeft ;
       motorLeftSpeedRpmSet = motorRightSpeedRpmSet = 0;
-      setMotorPWM(0, 0, false);
+      setMotorPWM(0, 0);
       setActuator(ACT_CHGRELAY, 0);
       setDefaults();
       statsMowTimeTotalStart = false;  // stop stats mowTime counter
@@ -4421,14 +4784,14 @@ void Robot::checkCurrent() {
     if (motorLeftPower >= 0.8 * motorPowerMax) {
       ShowMessage("Motor Left power is 80 % of the max, value --> ");
       ShowMessageln(motorLeftPower);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       setNextState(STATE_OFF, 0);
 
     }
     if (motorRightPower >= 0.8 * motorPowerMax) {
       ShowMessage("Motor Right power is 80 % of the max, value --> ");
       ShowMessageln(motorRightPower);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       setNextState(STATE_OFF, 0);
 
     }
@@ -4445,7 +4808,7 @@ void Robot::checkCurrent() {
       motorRightSenseCounter++;
       motorRightOverload = true;
       setBeeper(1000, 50, 50, 200, 100);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       ShowMessage("Motor Right power is 80 % of the max, value --> ");
       ShowMessageln(motorRightPower);
 
@@ -4490,7 +4853,7 @@ void Robot::checkCurrent() {
       motorLeftSenseCounter++;
       motorLeftOverload = true;
       setBeeper(1000, 50, 50, 100, 50);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       ShowMessage("Motor Left power is 80 % of the max, value --> ");
       ShowMessageln(motorLeftPower);
 
@@ -4531,14 +4894,14 @@ void Robot::checkCurrent() {
       ShowMessage("Fatal Error: Motor Left power over 100% for more than 1 seconde last power --> ");
       ShowMessageln(motorLeftPower);
       addErrorCounter(ERR_MOTOR_LEFT);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       setNextState(STATE_ERROR, 0);
     }
     if (motorRightSenseCounter >= 10) { //the motor is stuck for more than 1 seconde go to error.
       ShowMessage("Fatal Error: Motor Right power over 100% for more than 1 seconde last power --> ");
       ShowMessageln(motorRightPower);
       addErrorCounter(ERR_MOTOR_RIGHT);
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       setNextState(STATE_ERROR, 0);
     }
 
@@ -4556,7 +4919,7 @@ void Robot::checkBumpers() {
       rollDir=RIGHT;
       motorLeftRpmCurr = motorRightRpmCurr = 0 ;
       motorLeftPWMCurr = motorRightPWMCurr = 0;
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
 
       return;
     }
@@ -4564,7 +4927,7 @@ void Robot::checkBumpers() {
       rollDir=LEFT;
       motorLeftRpmCurr = motorRightRpmCurr = 0 ;
       motorLeftPWMCurr = motorRightPWMCurr = 0;
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
 
       return;
     }
@@ -4586,7 +4949,7 @@ void Robot::checkBumpers() {
       highGrassDetect = false;
       motorLeftRpmCurr = motorRightRpmCurr = 0 ;
       motorLeftPWMCurr = motorRightPWMCurr = 0;
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       if (bumperLeft) {
         ShowMessageln("Bumper left trigger");
         reverseOrBidir(LEFT);
@@ -4613,7 +4976,7 @@ void Robot::checkDrop() {  //the drop is used as a contact in front of the robot
       highGrassDetect = false;
       motorLeftRpmCurr = motorRightRpmCurr = 0 ;
       motorLeftPWMCurr = motorRightPWMCurr = 0;
-      setMotorPWM( 0, 0, false );
+      setMotorPWM(0, 0);
       if (dropLeft) {
         reverseOrBidir(RIGHT);
       } else {
@@ -4627,7 +4990,7 @@ void Robot::checkDrop() {  //the drop is used as a contact in front of the robot
 void Robot::checkBumpersPerimeter() {
   if ((bumperLeft || bumperRight)) { // the bumper is used to detect the station
     motorLeftRpmCurr = motorRightRpmCurr = 0 ;
-    setMotorPWM( 0, 0, false );//stop immediatly and station check to see if voltage on pin
+    setMotorPWM(0, 0);//stop immediatly and station check to see if voltage on pin
     nextTimeBattery = millis();
     readSensors();  //read the chgVoltage
     ShowMessageln("Bump on Something check if it's the station");
@@ -4641,7 +5004,7 @@ void Robot::checkBumpersPerimeter() {
     readSensors();  //read the chgVoltage immediatly
     if (chgVoltage > 5) {
       motorLeftRpmCurr = motorRightRpmCurr = 0 ;
-      setMotorPWM( 0, 0, false );//stop immediatly and wait 2 sec to see if voltage on pin
+      setMotorPWM(0, 0);//stop immediatly and wait 2 sec to see if voltage on pin
       ShowMessageln("Detect a voltage on charging contact check if it's the station");
       setNextState(STATE_STATION_CHECK, rollDir);
     }
@@ -4745,7 +5108,7 @@ void Robot::checkPerimeterBoundary() {
         perimeterTriggerTime = 0;
 		perimeterRightTriggerTime = 0;
         ShowMessageln("Pourquoi je suis la ?? ?? ?? ?? ?? ?? ?? ?? ");
-        setMotorPWM( 0, 0, false );
+        setMotorPWM(0, 0);
         setNextState(STATE_PERI_OUT_REV, rollDir);
         return;
 
@@ -4921,7 +5284,7 @@ void Robot::checkTilt() {
   int pitchAngle = (imu.ypr.pitch / PI * 180.0);
   int rollAngle  = (imu.ypr.roll / PI * 180.0);
   //bber4
-  if ( (stateCurr != STATE_OFF) && (stateCurr != STATE_ERROR) && (stateCurr != STATE_STATION) && (stateCurr != STATE_STATION_CHARGING)) {
+  if ( (stateCurr != STATE_MANUAL) && (stateCurr != STATE_OFF) && (stateCurr != STATE_ERROR) && (stateCurr != STATE_STATION) && (stateCurr != STATE_STATION_CHARGING)) {
     if ( (abs(pitchAngle) > 40) || (abs(rollAngle) > 40) ) {
       nextTimeCheckTilt = millis() + 5000; // avoid repeat
       ShowMessage(F("Warning : IMU Roll / Tilt -- > "));
@@ -4989,13 +5352,13 @@ void Robot::checkIfStuck() {
     if (stateCurr == STATE_FORWARD) {
     motorMowEnable = false;
     addErrorCounter(ERR_STUCK);
-    setMotorPWM( 0, 0, false );
+    setMotorPWM(0, 0);
     reverseOrBidir(RIGHT);
     }
     else if (stateCurr == STATE_ROLL) {
     motorMowEnable = false;
     addErrorCounter(ERR_STUCK);
-    setMotorPWM( 0, 0, false );
+    setMotorPWM(0, 0);
     setNextState (STATE_FORWARD, 0);
     }
     }
@@ -5118,11 +5481,18 @@ void Robot::checkTimeout() {
 void Robot::loop()  {
   stateTime = millis() - stateStartTime;
   int steer;
-  
   //LJ
   //UpdateDisplayBat(); 
   updateLED();
   
+  if ((useMqtt) && (millis() > next_time_refresh_mqtt)) {
+    next_time_refresh_mqtt = millis() + 3000;
+    String line01 = "#RMSTA," + String(statusNames[statusCurr]) + "," + String(stateNames[stateCurr]) + "," + String(temperatureDht) + "," + String(batVoltage) + "," + String(loopsPerSec)  ;
+    Bluetooth.println(line01);
+
+
+  }
+
   ADCMan.run();
   if (perimeterUse) perimeter.run();
   if (RaspberryPIUse) {
@@ -5154,7 +5524,7 @@ void Robot::loop()  {
   beeper();
   //if (stateCurr != STATE_PERI_TRACK) {
   //do not read imu into station ??
-  if ((stateCurr != STATE_STATION_CHARGING) && (stateCurr != STATE_STATION) && (stateCurr != STATE_PERI_TRACK)) {
+  if ((stateCurr != STATE_START_FROM_STATION) && (stateCurr != STATE_STATION_CHARGING) && (stateCurr != STATE_STATION) && (stateCurr != STATE_PERI_TRACK)) {
     if ((imuUse) && (millis() >= nextTimeImuLoop)) {
       nextTimeImuLoop = millis() + 50;
       StartReadAt = millis();
@@ -6015,7 +6385,7 @@ void Robot::loop()  {
         setNextState(STATE_PERI_OUT_LANE_ROLL1, rollDir);//if the motor can't reach the odocible in slope
       }
 
-
+      break;
 
     case STATE_SONAR_TRIG:
       motorControlOdo();
@@ -6604,6 +6974,43 @@ void Robot::loop()  {
       motorControlOdo();
       break;
 
+
+    case STATE_START_FROM_STATION:
+      //adjust imu to station heading
+      if ((imuUse) && (millis() >= nextTimeImuLoop)) {
+        nextTimeImuLoop = millis() + 50;
+        StartReadAt = millis();
+        imu.run();
+        EndReadAt = millis();
+        ReadDuration = EndReadAt - StartReadAt;
+        if ( ReadDuration > 30) {
+          ShowMessage("Error reading imu too long duration : ");
+          ShowMessageln(ReadDuration);
+          ShowMessageln ("IMU and RFID are DEACTIVATE Mow in safe mode");
+          imuUse = false;
+          rfidUse = false;
+          addErrorCounter(ERR_IMU_COMM);
+        }
+        else
+        {
+          if (!CompassUse) { //set the yaw heading to station heading before mower leave station if compass is not use
+            imu.CompassGyroOffset = imu.CompassGyroOffset + scalePI((stationHeading / 180 * PI) - imu.ypr.yaw);
+            imu.run();
+          }
+        }
+      }
+
+      if (millis() > (stateStartTime + MaxStateDuration)) {
+        if (imuUse) {
+          ShowMessage("Imu Heading is reset to Station Heading : ");
+          ShowMessageln(imu.ypr.yaw * 180 / PI);
+        }
+        setNextState(STATE_STATION_REV, 1);
+      }
+
+      break;
+
+
     case STATE_STATION_REV:
 
       motorControlOdo();
@@ -6628,8 +7035,9 @@ void Robot::loop()  {
           smoothPeriMag = perimeter.getSmoothMagnitude(0);
           if ((perimeterInside) && (smoothPeriMag > 250)) //check if signal here and inside need a big value to be sure it is not only noise
           {
-            ShowMessage("SIGNAL OK SmoothMagnitude =  ");
+            ShowMessage("SIGNAL OK SmoothMagnitude = ");
             ShowMessageln(smoothPeriMag);
+            motorMowEnable = true;
             setNextState(STATE_STATION_FORW, rollDir);
           }
           else {
